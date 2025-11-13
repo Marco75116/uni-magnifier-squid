@@ -1,0 +1,201 @@
+import {createClient} from '@clickhouse/client'
+import {createEvmDecoder, createEvmPortalSource} from '@sqd-pipes/pipes/evm'
+import {createClickhouseTarget} from '@sqd-pipes/pipes/targets/clickhouse'
+
+import * as PoolManager from './abi/PoolManager'
+import * as PositionDiscriptor from './abi/PositionDiscriptor'
+import * as PositionManager from './abi/PositionManager'
+import * as Permit2 from './abi/Permit2'
+
+// Uniswap V4 contract addresses and their deployment block numbers on Ethereum Mainnet
+const CONTRACTS = {
+    PoolManager: {address: '0x000000000004444c5dc75cB358380D2e3dE08A90', range: {from: 21688329}},
+    PositionDiscriptor: {address: '0xd1428Ba554F4C8450b763a0B2040A4935c63f06C', range: {from: 21689088}},
+    PositionManager: {address: '0xbd216513d74c8cf14cf4747e6aaa6420ff64ee9e', range: {from: 21689089}},
+    Permit2: {address: '0x000000000022D473030F116dDEE9F6B43aC78BA3', range: {from: 15986406}},
+}
+
+/**
+ * This example demonstrates how to index Uniswap V4 protocol events from Ethereum Mainnet.
+ * It creates a connection to a local ClickHouse instance, sets up an EVM Portal Source to stream
+ * events from Uniswap V4 PoolManager (pool initialization and swaps),
+ * and pipes the decoded data to ClickHouse for storage and analysis.
+ */
+async function main() {
+    const client = createClient({
+        username: 'default',
+        password: 'default',
+        url: 'http://localhost:8123',
+    })
+
+    await createEvmPortalSource({
+        portal: 'https://portal.sqd.dev/datasets/ethereum-mainnet',
+    })
+        // Configure decoders for each contract. The events list is fully configurable -
+        // specify only the events you need to index for your use case.
+        .pipeComposite({
+            PoolManager: createEvmDecoder({
+                range: CONTRACTS.PoolManager.range,
+                contracts: [CONTRACTS.PoolManager.address],
+                events: {
+                    Initialize: PoolManager.events.Initialize,
+                    Swap: PoolManager.events.Swap,
+                },
+            }),
+            // PositionDiscriptor: createEvmDecoder({
+            //     range: CONTRACTS.PositionDiscriptor.range,
+            //     contracts: [CONTRACTS.PositionDiscriptor.address],
+            //     events: {...PositionDiscriptor.events},
+            // }),
+            // PositionManager: createEvmDecoder({
+            //     range: CONTRACTS.PositionManager.range,
+            //     contracts: [CONTRACTS.PositionManager.address],
+            //     events: {...PositionManager.events},
+            // }),
+            // Permit2: createEvmDecoder({
+            //     range: CONTRACTS.Permit2.range,
+            //     contracts: [CONTRACTS.Permit2.address],
+            //     events: {...Permit2.events},
+            // }),
+        })
+        .pipeTo(
+            createClickhouseTarget({
+                client,
+                async onStart({store}) {
+                    // Create table for pool initializations
+                    await store.command({
+                        query: `
+                            CREATE TABLE IF NOT EXISTS pools (
+                                block_number UInt64,
+                                timestamp DateTime,
+                                tx_hash String,
+                                pool_id String,
+                                currency0 String,
+                                currency1 String,
+                                fee UInt32,
+                                tick_spacing Int32,
+                                hooks String,
+                                sqrt_price_x96 String,
+                                tick Int32,
+                                sign Int8
+                            ) ENGINE = CollapsingMergeTree(sign)
+                            ORDER BY (timestamp, block_number, tx_hash)
+                        `,
+                    })
+
+                    // Create table for swaps
+                    await store.command({
+                        query: `
+                            CREATE TABLE IF NOT EXISTS swaps (
+                                block_number UInt64,
+                                timestamp DateTime,
+                                tx_hash String,
+                                pool_id String,
+                                sender String,
+                                amount0 String,
+                                amount1 String,
+                                sqrt_price_x96 String,
+                                liquidity String,
+                                tick Int32,
+                                fee UInt32,
+                                sign Int8
+                            ) ENGINE = CollapsingMergeTree(sign)
+                            ORDER BY (timestamp, block_number, tx_hash)
+                        `,
+                    })
+                },
+                async onData({data, store}) {
+                    const pools: {
+                        block_number: number
+                        timestamp?: Date
+                        tx_hash: string
+                        pool_id: string
+                        currency0: string
+                        currency1: string
+                        fee: number
+                        tick_spacing: number
+                        hooks: string
+                        sqrt_price_x96: string
+                        tick: number
+                        sign: number
+                    }[] = []
+
+                    // Process PoolManager Initialize events
+                    for (const e of data.PoolManager?.Initialize || []) {
+                        pools.push({
+                            block_number: e.block.number,
+                            // timestamp: new Date(e.block.timestamp * 1000),
+                            tx_hash: e.rawEvent.transactionHash,
+                            pool_id: e.event.id,
+                            currency0: e.event.currency0,
+                            currency1: e.event.currency1,
+                            fee: e.event.fee,
+                            tick_spacing: e.event.tickSpacing,
+                            hooks: e.event.hooks,
+                            sqrt_price_x96: e.event.sqrtPriceX96.toString(),
+                            tick: e.event.tick,
+                            sign: 1,
+                        })
+                    }
+
+                    if (pools.length > 0) {
+                        await store.insert({
+                            table: 'pools',
+                            values: pools,
+                            format: 'JSONEachRow',
+                        })
+                    }
+
+                    const swaps: {
+                        block_number: number
+                        timestamp?: Date
+                        tx_hash: string
+                        pool_id: string
+                        sender: string
+                        amount0: string
+                        amount1: string
+                        sqrt_price_x96: string
+                        liquidity: string
+                        tick: number
+                        fee: number
+                        sign: number
+                    }[] = []
+
+                    // Process PoolManager Swap events
+                    for (const e of data.PoolManager?.Swap || []) {
+                        swaps.push({
+                            block_number: e.block.number,
+                            // timestamp: new Date(e.block.timestamp * 1000),
+                            tx_hash: e.rawEvent.transactionHash,
+                            pool_id: e.event.id,
+                            sender: e.event.sender,
+                            amount0: e.event.amount0.toString(),
+                            amount1: e.event.amount1.toString(),
+                            sqrt_price_x96: e.event.sqrtPriceX96.toString(),
+                            liquidity: e.event.liquidity.toString(),
+                            tick: e.event.tick,
+                            fee: e.event.fee,
+                            sign: 1,
+                        })
+                    }
+
+                    if (swaps.length > 0) {
+                        await store.insert({
+                            table: 'swaps',
+                            values: swaps,
+                            format: 'JSONEachRow',
+                        })
+                    }
+                },
+                onRollback: async ({store, cursor}) => {
+                    // Rollback data by deleting entries at or after the rollback block
+                    await store.removeAllRows({
+                        tables: ['pools', 'swaps'],
+                        where: `block_number >= ${cursor.number}`,
+                    })
+                },
+            })
+        )
+}
+
+void main()
