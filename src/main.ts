@@ -107,7 +107,7 @@ async function main() {
                 async onData({data, store}) {
                     const pools: {
                         block_number: number
-                        timestamp?: Date
+                        timestamp: Date
                         tx_hash: string
                         pool_id: string
                         currency0: string
@@ -124,7 +124,7 @@ async function main() {
                     for (const e of data.PoolManager?.Initialize || []) {
                         pools.push({
                             block_number: e.block.number,
-                            // timestamp: new Date(e.block.timestamp * 1000),
+                            timestamp: e.timestamp,
                             tx_hash: e.rawEvent.transactionHash,
                             pool_id: e.event.id,
                             currency0: e.event.currency0,
@@ -148,7 +148,7 @@ async function main() {
 
                     const swaps: {
                         block_number: number
-                        timestamp?: Date
+                        timestamp: Date
                         tx_hash: string
                         pool_id: string
                         sender: string
@@ -165,7 +165,7 @@ async function main() {
                     for (const e of data.PoolManager?.Swap || []) {
                         swaps.push({
                             block_number: e.block.number,
-                            // timestamp: new Date(e.block.timestamp * 1000),
+                            timestamp: e.timestamp,
                             tx_hash: e.rawEvent.transactionHash,
                             pool_id: e.event.id,
                             sender: e.event.sender,
