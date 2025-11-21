@@ -1,6 +1,6 @@
 import {createClient} from '@clickhouse/client'
-import {createEvmDecoder, createEvmPortalSource} from '@sqd-pipes/pipes/evm'
-import {createClickhouseTarget} from '@sqd-pipes/pipes/targets/clickhouse'
+import {evmDecoder, evmPortalSource} from '@subsquid/pipes/evm'
+import {clickhouseTarget} from '@subsquid/pipes/targets/clickhouse'
 
 import * as PoolManager from './abi/PoolManager'
 import * as PositionDiscriptor from './abi/PositionDiscriptor'
@@ -16,6 +16,13 @@ const CONTRACTS = {
 }
 
 /**
+ * Converts a Date object to ClickHouse DateTime format string (YYYY-MM-DD HH:MM:SS)
+ */
+function formatTimestampForClickHouse(date: Date): string {
+    return date.toISOString().replace('T', ' ').replace('Z', '').split('.')[0]
+}
+
+/**
  * This example demonstrates how to index Uniswap V4 protocol events from Ethereum Mainnet.
  * It creates a connection to a local ClickHouse instance, sets up an EVM Portal Source to stream
  * events from Uniswap V4 PoolManager (pool initialization and swaps),
@@ -28,13 +35,13 @@ async function main() {
         url: 'http://localhost:8123',
     })
 
-    await createEvmPortalSource({
+    await evmPortalSource({
         portal: 'https://portal.sqd.dev/datasets/ethereum-mainnet',
     })
         // Configure decoders for each contract. The events list is fully configurable -
         // specify only the events you need to index for your use case.
         .pipeComposite({
-            PoolManager: createEvmDecoder({
+            PoolManager: evmDecoder({
                 range: CONTRACTS.PoolManager.range,
                 contracts: [CONTRACTS.PoolManager.address],
                 events: {
@@ -42,24 +49,24 @@ async function main() {
                     Swap: PoolManager.events.Swap,
                 },
             }),
-            // PositionDiscriptor: createEvmDecoder({
+            // PositionDiscriptor: evmDecoder({
             //     range: CONTRACTS.PositionDiscriptor.range,
             //     contracts: [CONTRACTS.PositionDiscriptor.address],
             //     events: {...PositionDiscriptor.events},
             // }),
-            // PositionManager: createEvmDecoder({
+            // PositionManager: evmDecoder({
             //     range: CONTRACTS.PositionManager.range,
             //     contracts: [CONTRACTS.PositionManager.address],
             //     events: {...PositionManager.events},
             // }),
-            // Permit2: createEvmDecoder({
+            // Permit2: evmDecoder({
             //     range: CONTRACTS.Permit2.range,
             //     contracts: [CONTRACTS.Permit2.address],
             //     events: {...Permit2.events},
             // }),
         })
         .pipeTo(
-            createClickhouseTarget({
+            clickhouseTarget({
                 client,
                 async onStart({store}) {
                     // Create table for pool initializations
@@ -107,7 +114,7 @@ async function main() {
                 async onData({data, store}) {
                     const pools: {
                         block_number: number
-                        timestamp: Date
+                        timestamp: string
                         tx_hash: string
                         pool_id: string
                         currency0: string
@@ -124,7 +131,7 @@ async function main() {
                     for (const e of data.PoolManager?.Initialize || []) {
                         pools.push({
                             block_number: e.block.number,
-                            timestamp: e.timestamp,
+                            timestamp: formatTimestampForClickHouse(e.timestamp),
                             tx_hash: e.rawEvent.transactionHash,
                             pool_id: e.event.id,
                             currency0: e.event.currency0,
@@ -148,7 +155,7 @@ async function main() {
 
                     const swaps: {
                         block_number: number
-                        timestamp: Date
+                        timestamp: string
                         tx_hash: string
                         pool_id: string
                         sender: string
@@ -165,7 +172,7 @@ async function main() {
                     for (const e of data.PoolManager?.Swap || []) {
                         swaps.push({
                             block_number: e.block.number,
-                            timestamp: e.timestamp,
+                            timestamp: formatTimestampForClickHouse(e.timestamp),
                             tx_hash: e.rawEvent.transactionHash,
                             pool_id: e.event.id,
                             sender: e.event.sender,
@@ -187,11 +194,11 @@ async function main() {
                         })
                     }
                 },
-                onRollback: async ({store, cursor}) => {
+                onRollback: async ({store, safeCursor}) => {
                     // Rollback data by deleting entries at or after the rollback block
                     await store.removeAllRows({
                         tables: ['pools', 'swaps'],
-                        where: `block_number >= ${cursor.number}`,
+                        where: `block_number >= ${safeCursor.number}`,
                     })
                 },
             })
