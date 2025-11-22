@@ -7,6 +7,7 @@ import * as PoolManager from "./abi/PoolManager";
 import * as PositionDiscriptor from "./abi/PositionDiscriptor";
 import * as PositionManager from "./abi/PositionManager";
 import * as Permit2 from "./abi/Permit2";
+import { poolsSchema, swapsSchema } from "./schema";
 
 // Uniswap V4 contract addresses and their deployment block numbers on Ethereum Mainnet
 const CONTRACTS = {
@@ -90,44 +91,12 @@ async function main() {
         async onStart({ store }) {
           // Create table for pool initializations
           await store.command({
-            query: `
-                            CREATE TABLE IF NOT EXISTS pools (
-                                block_number UInt64,
-                                timestamp DateTime,
-                                tx_hash String,
-                                pool_id String,
-                                currency0 String,
-                                currency1 String,
-                                fee UInt32,
-                                tick_spacing Int32,
-                                hooks String,
-                                sqrt_price_x96 String,
-                                tick Int32,
-                                sign Int8
-                            ) ENGINE = CollapsingMergeTree(sign)
-                            ORDER BY (timestamp, block_number, tx_hash)
-                        `,
+            query: poolsSchema,
           });
 
           // Create table for swaps
           await store.command({
-            query: `
-                            CREATE TABLE IF NOT EXISTS swaps (
-                                block_number UInt64,
-                                timestamp DateTime,
-                                tx_hash String,
-                                pool_id String,
-                                sender String,
-                                amount0 String,
-                                amount1 String,
-                                sqrt_price_x96 String,
-                                liquidity String,
-                                tick Int32,
-                                fee UInt32,
-                                sign Int8
-                            ) ENGINE = CollapsingMergeTree(sign)
-                            ORDER BY (timestamp, block_number, tx_hash)
-                        `,
+            query: swapsSchema,
           });
         },
         async onData({ data, store }) {
