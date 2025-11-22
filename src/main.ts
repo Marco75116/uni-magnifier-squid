@@ -7,7 +7,7 @@ import * as PoolManager from "./abi/PoolManager";
 import * as PositionDiscriptor from "./abi/PositionDiscriptor";
 import * as PositionManager from "./abi/PositionManager";
 import * as Permit2 from "./abi/Permit2";
-import { poolsSchema, swapsSchema } from "./schema";
+import { initSchema } from "./schema";
 
 // Uniswap V4 contract addresses and their deployment block numbers on Ethereum Mainnet
 const CONTRACTS = {
@@ -89,14 +89,8 @@ async function main() {
       clickhouseTarget({
         client,
         async onStart({ store }) {
-          // Create table for pool initializations
           await store.command({
-            query: poolsSchema,
-          });
-
-          // Create table for swaps
-          await store.command({
-            query: swapsSchema,
+            query: initSchema,
           });
         },
         async onData({ data, store }) {

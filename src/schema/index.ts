@@ -1,12 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 
-export const poolsSchema = readFileSync(
-  join(__dirname, "pools.sql"),
-  "utf-8"
-);
-
-export const swapsSchema = readFileSync(
-  join(__dirname, "swaps.sql"),
+export const initSchema = readFileSync(
+  join(__dirname, "initSchema.sql"),
   "utf-8"
 );
