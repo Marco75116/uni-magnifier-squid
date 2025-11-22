@@ -9,7 +9,11 @@ import * as PositionDiscriptor from "./abi/PositionDiscriptor";
 import * as PositionManager from "./abi/PositionManager";
 import * as Permit2 from "./abi/Permit2";
 import { initSchema } from "./schema";
-import { getNetworkConfig, networksConfigs } from "./utils/constants/network.constant";
+import {
+  getNetworkConfig,
+  networksConfigs,
+} from "./utils/constants/network.constant";
+import { clickhouseClient } from "./utils/clients/clickhouse.client";
 
 // Validate network argument
 assert(
@@ -39,12 +43,6 @@ function formatTimestampForClickHouse(date: Date): string {
  * and pipes the decoded data to ClickHouse for storage and analysis.
  */
 async function main() {
-  const client = createClient({
-    username: "default",
-    password: "default",
-    url: "http://localhost:8123",
-  });
-
   await evmPortalSource({
     portal: {
       url: networkConfig.gatewaySqdUrl,
@@ -83,7 +81,7 @@ async function main() {
     })
     .pipeTo(
       clickhouseTarget({
-        client,
+        client: clickhouseClient,
         async onStart({ store }) {
           await store.command({
             query: initSchema,
