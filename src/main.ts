@@ -1,6 +1,7 @@
 import { createClient } from "@clickhouse/client";
 import { evmDecoder, evmPortalSource } from "@subsquid/pipes/evm";
 import { clickhouseTarget } from "@subsquid/pipes/targets/clickhouse";
+import { portalSqliteCache } from "@subsquid/pipes/portal-cache/node";
 
 import * as PoolManager from "./abi/PoolManager";
 import * as PositionDiscriptor from "./abi/PositionDiscriptor";
@@ -52,6 +53,9 @@ async function main() {
       url: "https://portal.sqd.dev/datasets/ethereum-mainnet",
       finalized: true,
     },
+    cache: portalSqliteCache({
+      path: "./uniswap-v4.cache.sqlite",
+    }),
   })
     // Configure decoders for each contract. The events list is fully configurable -
     // specify only the events you need to index for your use case.
