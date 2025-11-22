@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "start": "ts-node src/main.ts",
+    "start": "bun src/main.ts",
     "typegen": "squid-evm-typegen --clean src/abi ./abi/*.json"
   },
   "dependencies": {
