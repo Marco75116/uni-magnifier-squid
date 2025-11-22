@@ -1,5 +1,6 @@
 -- Pool initialization events
 CREATE TABLE IF NOT EXISTS pools (
+    chainId UInt32,
     block_number UInt64,
     timestamp DateTime,
     tx_hash String,
@@ -13,10 +14,11 @@ CREATE TABLE IF NOT EXISTS pools (
     tick Int32,
     sign Int8
 ) ENGINE = CollapsingMergeTree(sign)
-ORDER BY (timestamp, block_number, tx_hash);
+ORDER BY (chainId, timestamp, block_number, tx_hash);
 
 -- Pool swap events
 CREATE TABLE IF NOT EXISTS swaps (
+    chainId UInt32,
     block_number UInt64,
     timestamp DateTime,
     tx_hash String,
@@ -30,4 +32,4 @@ CREATE TABLE IF NOT EXISTS swaps (
     fee UInt32,
     sign Int8
 ) ENGINE = CollapsingMergeTree(sign)
-ORDER BY (timestamp, block_number, tx_hash);
+ORDER BY (chainId, timestamp, block_number, tx_hash)

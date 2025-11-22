@@ -2,32 +2,28 @@ import { createClient } from "@clickhouse/client";
 import { evmDecoder, evmPortalSource } from "@subsquid/pipes/evm";
 import { clickhouseTarget } from "@subsquid/pipes/targets/clickhouse";
 import { portalSqliteCache } from "@subsquid/pipes/portal-cache/node";
+import assert from "assert";
 
 import * as PoolManager from "./abi/PoolManager";
 import * as PositionDiscriptor from "./abi/PositionDiscriptor";
 import * as PositionManager from "./abi/PositionManager";
 import * as Permit2 from "./abi/Permit2";
 import { initSchema } from "./schema";
+import { getNetworkConfig, networksConfigs } from "./utils/constants/network.constant";
 
-// Uniswap V4 contract addresses and their deployment block numbers on Ethereum Mainnet
-const CONTRACTS = {
-  PoolManager: {
-    address: "0x000000000004444c5dc75cB358380D2e3dE08A90",
-    range: { from: 21688329 },
-  },
-  PositionDiscriptor: {
-    address: "0xd1428Ba554F4C8450b763a0B2040A4935c63f06C",
-    range: { from: 21689088 },
-  },
-  PositionManager: {
-    address: "0xbd216513d74c8cf14cf4747e6aaa6420ff64ee9e",
-    range: { from: 21689089 },
-  },
-  Permit2: {
-    address: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
-    range: { from: 15986406 },
-  },
-};
+// Validate network argument
+assert(
+  networksConfigs.hasOwnProperty(process.argv[2]),
+  `Processor executable takes one argument - a network string ID - ` +
+    `that must be in ${JSON.stringify(Object.keys(networksConfigs))}. Got "${
+      process.argv[2]
+    }".`
+);
+
+const network = process.argv[2];
+const networkConfig = getNetworkConfig(network);
+const CHAIN_ID = networkConfig.chainId;
+const CONTRACTS = networkConfig.contracts;
 
 /**
  * Converts a Date object to ClickHouse DateTime format string (YYYY-MM-DD HH:MM:SS)
@@ -51,11 +47,11 @@ async function main() {
 
   await evmPortalSource({
     portal: {
-      url: "https://portal.sqd.dev/datasets/ethereum-mainnet",
+      url: networkConfig.gatewaySqdUrl,
       finalized: true,
     },
     cache: portalSqliteCache({
-      path: "./uniswap-v4.cache.sqlite",
+      path: `./${networkConfig.chainTag}-portal.cache.sqlite`,
     }),
   })
     // Configure decoders for each contract. The events list is fully configurable -
@@ -95,6 +91,7 @@ async function main() {
         },
         async onData({ data, store }) {
           const pools: {
+            chainId: number;
             block_number: number;
             timestamp: string;
             tx_hash: string;
@@ -112,6 +109,7 @@ async function main() {
           // Process PoolManager Initialize events
           for (const e of data.PoolManager?.Initialize || []) {
             pools.push({
+              chainId: CHAIN_ID,
               block_number: e.block.number,
               timestamp: formatTimestampForClickHouse(e.timestamp),
               tx_hash: e.rawEvent.transactionHash,
@@ -136,6 +134,7 @@ async function main() {
           }
 
           const swaps: {
+            chainId: number;
             block_number: number;
             timestamp: string;
             tx_hash: string;
@@ -153,6 +152,7 @@ async function main() {
           // Process PoolManager Swap events
           for (const e of data.PoolManager?.Swap || []) {
             swaps.push({
+              chainId: CHAIN_ID,
               block_number: e.block.number,
               timestamp: formatTimestampForClickHouse(e.timestamp),
               tx_hash: e.rawEvent.transactionHash,
