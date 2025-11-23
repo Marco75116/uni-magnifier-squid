@@ -49,4 +49,35 @@ CREATE TABLE IF NOT EXISTS modify_liquidity (
     salt String,
     sign Int8
 ) ENGINE = CollapsingMergeTree(sign)
-ORDER BY (chainId, position_id, timestamp, block_number)
+ORDER BY (chainId, position_id, timestamp, block_number);
+
+
+CREATE TABLE IF NOT EXISTS positions (
+    chainId UInt32,
+    position_id String,
+    pool_id String,
+    sender String,
+    tick_lower Int32,
+    tick_upper Int32,
+    salt String,
+    liquidity Int256,  
+    last_updated_block UInt64,
+    last_updated_timestamp DateTime
+) ENGINE = SummingMergeTree(liquidity)
+ORDER BY (chainId, position_id)
+PRIMARY KEY (chainId, position_id);
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS positions_mv
+TO positions
+AS SELECT
+    chainId,
+    position_id,
+    pool_id,
+    sender,
+    tick_lower,
+    tick_upper,
+    salt,
+    toInt256(liquidity_delta) * sign AS liquidity,
+    block_number AS last_updated_block,
+    timestamp AS last_updated_timestamp
+FROM modify_liquidity;
