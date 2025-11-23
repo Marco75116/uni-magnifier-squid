@@ -1,4 +1,6 @@
 import { ethNetworkConfig } from "./networkconfigs/eth.networkconfig";
+import { unichainNetworkConfig } from "./networkconfigs/unichain.networkconfig";
+import { baseNetworkConfig } from "./networkconfigs/base.networkconfig";
 
 export type ContractConfig = {
   address: string;
@@ -14,7 +16,6 @@ export type ContractsConfig = {
 
 export type NetworkConfig = {
   gatewaySqdUrl: string;
-  finalityConfirmation: number;
   chainId: number;
   chainTag: string;
   contracts: ContractsConfig;
@@ -22,6 +23,8 @@ export type NetworkConfig = {
 
 export const networksConfigs: Record<string, NetworkConfig> = {
   eth: ethNetworkConfig,
+  uni: unichainNetworkConfig,
+  base: baseNetworkConfig,
 };
 
 export const getNetworkConfig = (network: string): NetworkConfig => {
