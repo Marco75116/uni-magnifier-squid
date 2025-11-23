@@ -1,6 +1,7 @@
 {
   "scripts": {
     "start": "bun src/main.ts",
+    "all": "bun src/main.ts eth & bun src/main.ts unichain & bun src/main.ts base & wait",
     "typegen": "squid-evm-typegen --clean src/abi ./abi/*.json"
   },
   "dependencies": {
