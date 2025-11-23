@@ -1,4 +1,5 @@
 import pino from "pino";
+import { ModifyLiquidityEventArgs } from "../../abi/PoolManager";
 
 export function normalizeAddress(address: string): string {
   return address.toLowerCase();
@@ -37,4 +38,11 @@ export function getLogger(chainTag: string) {
 
 export function formatTimestampForClickHouse(date: Date): string {
   return date.toISOString().replace("T", " ").replace("Z", "").split(".")[0];
+}
+
+export function getPositionId(
+  chainId: number,
+  event: ModifyLiquidityEventArgs
+): string {
+  return `${chainId}-${event.sender}-${event.id}-${event.tickLower}-${event.tickUpper}-${event.salt}`;
 }

@@ -17,6 +17,7 @@ import { clickhouseClient } from "./utils/clients/clickhouse.client";
 import {
   formatTimestampForClickHouse,
   getLogger,
+  getPositionId,
 } from "./utils/helpers/global.helper";
 
 // Validate network argument
@@ -54,6 +55,7 @@ async function main() {
         events: {
           Initialize: PoolManager.events.Initialize,
           Swap: PoolManager.events.Swap,
+          ModifyLiquidity: PoolManager.events.ModifyLiquidity,
         },
       }),
       // PositionDiscriptor: evmDecoder({
@@ -163,6 +165,46 @@ async function main() {
             await store.insert({
               table: "swaps",
               values: swaps,
+              format: "JSONEachRow",
+            });
+          }
+
+          const positions: {
+            chainId: number;
+            block_number: number;
+            timestamp: string;
+            tx_hash: string;
+            position_id: string;
+            pool_id: string;
+            sender: string;
+            tick_lower: number;
+            tick_upper: number;
+            liquidity_delta: string;
+            salt: string;
+            sign: number;
+          }[] = [];
+
+          for (const e of data.PoolManager?.ModifyLiquidity || []) {
+            positions.push({
+              chainId: CHAIN_ID,
+              block_number: e.block.number,
+              timestamp: formatTimestampForClickHouse(e.timestamp),
+              tx_hash: e.rawEvent.transactionHash,
+              position_id: getPositionId(CHAIN_ID, e.event),
+              pool_id: e.event.id,
+              sender: e.event.sender,
+              tick_lower: e.event.tickLower,
+              tick_upper: e.event.tickUpper,
+              liquidity_delta: e.event.liquidityDelta.toString(),
+              salt: e.event.salt,
+              sign: 1,
+            });
+          }
+
+          if (positions.length > 0) {
+            await store.insert({
+              table: "modify_liquidity",
+              values: positions,
               format: "JSONEachRow",
             });
           }
