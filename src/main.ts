@@ -8,7 +8,7 @@ import * as PoolManager from "./abi/PoolManager";
 import * as PositionDiscriptor from "./abi/PositionDiscriptor";
 import * as PositionManager from "./abi/PositionManager";
 import * as Permit2 from "./abi/Permit2";
-import { initSchema } from "./schema";
+import { initSchemaStatements } from "./schema";
 import {
   getNetworkConfig,
   networksConfigs,
@@ -83,9 +83,11 @@ async function main() {
       clickhouseTarget({
         client: clickhouseClient,
         async onStart({ store }) {
-          await store.command({
-            query: initSchema,
-          });
+          for (const statement of initSchemaStatements) {
+            await store.command({
+              query: statement,
+            });
+          }
         },
         async onData({ data, store }) {
           const pools: {
