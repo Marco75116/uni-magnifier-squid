@@ -19,6 +19,11 @@ import {
   getLogger,
   getPositionId,
 } from "./utils/helpers/global.helper";
+import {
+  PoolRecord,
+  SwapRecord,
+  ModifyLiquidityRecord,
+} from "./utils/types/global.type";
 
 // Validate network argument
 assert(
@@ -85,21 +90,7 @@ async function main() {
           }
         },
         async onData({ data, store }) {
-          const pools: {
-            chainId: number;
-            block_number: number;
-            timestamp: string;
-            tx_hash: string;
-            pool_id: string;
-            currency0: string;
-            currency1: string;
-            fee: number;
-            tick_spacing: number;
-            hooks: string;
-            sqrt_price_x96: string;
-            tick: number;
-            sign: number;
-          }[] = [];
+          const pools: PoolRecord[] = [];
 
           for (const e of data.PoolManager?.Initialize || []) {
             pools.push({
@@ -127,21 +118,7 @@ async function main() {
             });
           }
 
-          const swaps: {
-            chainId: number;
-            block_number: number;
-            timestamp: string;
-            tx_hash: string;
-            pool_id: string;
-            sender: string;
-            amount0: string;
-            amount1: string;
-            sqrt_price_x96: string;
-            liquidity: string;
-            tick: number;
-            fee: number;
-            sign: number;
-          }[] = [];
+          const swaps: SwapRecord[] = [];
 
           for (const e of data.PoolManager?.Swap || []) {
             swaps.push({
@@ -169,23 +146,10 @@ async function main() {
             });
           }
 
-          const positions: {
-            chainId: number;
-            block_number: number;
-            timestamp: string;
-            tx_hash: string;
-            position_id: string;
-            pool_id: string;
-            sender: string;
-            tick_lower: number;
-            tick_upper: number;
-            liquidity_delta: string;
-            salt: string;
-            sign: number;
-          }[] = [];
+          const modifyLiquidities: ModifyLiquidityRecord[] = [];
 
           for (const e of data.PoolManager?.ModifyLiquidity || []) {
-            positions.push({
+            modifyLiquidities.push({
               chainId: CHAIN_ID,
               block_number: e.block.number,
               timestamp: formatTimestampForClickHouse(e.timestamp),
@@ -201,10 +165,10 @@ async function main() {
             });
           }
 
-          if (positions.length > 0) {
+          if (modifyLiquidities.length > 0) {
             await store.insert({
               table: "modify_liquidity",
-              values: positions,
+              values: modifyLiquidities,
               format: "JSONEachRow",
             });
           }
