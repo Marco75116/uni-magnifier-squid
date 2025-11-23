@@ -14,6 +14,10 @@ import {
   networksConfigs,
 } from "./utils/constants/network.constant";
 import { clickhouseClient } from "./utils/clients/clickhouse.client";
+import {
+  formatTimestampForClickHouse,
+  getLogger,
+} from "./utils/helpers/global.helper";
 
 // Validate network argument
 assert(
@@ -29,20 +33,10 @@ const networkConfig = getNetworkConfig(network);
 const CHAIN_ID = networkConfig.chainId;
 const CONTRACTS = networkConfig.contracts;
 
-/**
- * Converts a Date object to ClickHouse DateTime format string (YYYY-MM-DD HH:MM:SS)
- */
-function formatTimestampForClickHouse(date: Date): string {
-  return date.toISOString().replace("T", " ").replace("Z", "").split(".")[0];
-}
-
-/**
- * This example demonstrates how to index Uniswap V4 protocol events from Ethereum Mainnet.
- * It creates a connection to a local ClickHouse instance, sets up an EVM Portal Source to stream
- * events from Uniswap V4 PoolManager (pool initialization and swaps),
- * and pipes the decoded data to ClickHouse for storage and analysis.
- */
 async function main() {
+  const logger = getLogger(networkConfig.chainTag);
+  logger.info(`Starting indexer for chain ID ${CHAIN_ID}`);
+
   await evmPortalSource({
     portal: {
       url: networkConfig.gatewaySqdUrl,
@@ -51,9 +45,8 @@ async function main() {
     cache: portalSqliteCache({
       path: `./${networkConfig.chainTag}-portal.cache.sqlite`,
     }),
+    logger,
   })
-    // Configure decoders for each contract. The events list is fully configurable -
-    // specify only the events you need to index for your use case.
     .pipeComposite({
       PoolManager: evmDecoder({
         range: CONTRACTS.PoolManager.range,
@@ -106,7 +99,6 @@ async function main() {
             sign: number;
           }[] = [];
 
-          // Process PoolManager Initialize events
           for (const e of data.PoolManager?.Initialize || []) {
             pools.push({
               chainId: CHAIN_ID,
@@ -149,7 +141,6 @@ async function main() {
             sign: number;
           }[] = [];
 
-          // Process PoolManager Swap events
           for (const e of data.PoolManager?.Swap || []) {
             swaps.push({
               chainId: CHAIN_ID,
