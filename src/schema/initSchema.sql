@@ -60,9 +60,9 @@ CREATE TABLE IF NOT EXISTS positions (
     tick_lower Int32,
     tick_upper Int32,
     salt String,
-    liquidity Int256,  
-    last_updated_block UInt64,
-    last_updated_timestamp DateTime
+    liquidity Int256,
+    creation_block_number UInt64,
+    creation_timestamp DateTime
 ) ENGINE = SummingMergeTree(liquidity)
 ORDER BY (chainId, position_id)
 PRIMARY KEY (chainId, position_id);
@@ -78,6 +78,6 @@ AS SELECT
     tick_upper,
     salt,
     toInt256(liquidity_delta) * sign AS liquidity,
-    block_number AS last_updated_block,
-    timestamp AS last_updated_timestamp
+    block_number AS creation_block_number,
+    timestamp AS creation_timestamp
 FROM modify_liquidity;
